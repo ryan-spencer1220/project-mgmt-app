@@ -2,6 +2,10 @@ import "./Create.css";
 import { useState, useEffect } from "react";
 import Select from "react-select";
 import { useCollection } from "../../hooks/useCollection";
+import { timestamp } from "../../firebase/config";
+import { useAuthContext } from "../../hooks/useAuthContext";
+import { useFirestore } from "../../hooks/useFirestore";
+import { useHistory } from "react-router-dom";
 
 const categories = [
   { value: "development", label: "Development" },
@@ -11,14 +15,17 @@ const categories = [
 ];
 
 export default function Create() {
+  const history = useHistory();
   const [name, setName] = useState("");
   const [details, setDetails] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [category, setCategory] = useState("");
   const [assignedUsers, setAssignedUsers] = useState([]);
-  const { documents } = useCollection("users");
   const [users, setUsers] = useState([]);
   const [formError, setFormError] = useState(null);
+  const { documents } = useCollection("users");
+  const { user } = useAuthContext();
+  const { addDocument, response } = useFirestore("projects");
 
   useEffect(() => {
     if (documents) {
@@ -29,7 +36,7 @@ export default function Create() {
     }
   }, [documents]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
 
@@ -41,7 +48,35 @@ export default function Create() {
       setFormError("Please Assign Users To This Project");
       return;
     }
-    console.log(name, details, dueDate, category.value, assignedUsers);
+
+    const createdBy = {
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      id: user.uid,
+    };
+
+    const assignedUsersList = assignedUsers.map((u) => {
+      return {
+        displayName: u.value.displayName,
+        photoURL: u.value.photoURL,
+        id: u.value.id,
+      };
+    });
+
+    const project = {
+      name,
+      details,
+      category: category.value,
+      dueDate: timestamp.fromDate(new Date(dueDate)),
+      comments: [],
+      createdBy,
+      assignedUsersList,
+    };
+
+    await addDocument(project);
+    if (!response.error) {
+      history.push("/");
+    }
   };
 
   return (
